@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安幸 收支儀表板 · Oasis Living</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#14181f; --panel:#1b2028; --panel2:#222936; --line:#2c3441;
+  --txt:#e8eaed; --txt2:#98a2b3; --txt3:#6b7480;
+  --brass:#d4a93f; --brass-dim:#8a7330;
+  --exp:#e5484d; --inc:#30a46c;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt);
+  font-family:"Noto Sans TC","IBM Plex Sans",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; padding:0 0 60px;
+}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+
+/* header */
+header{
+  border-bottom:1px solid var(--line); background:linear-gradient(180deg,#171c24,#14181f);
+  position:sticky;top:0;z-index:20;backdrop-filter:blur(6px)
+}
+.hbar{display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand h1{font-size:17px;font-weight:700;letter-spacing:.5px}
+.brand .sub{font-size:11px;color:var(--txt3);font-family:"IBM Plex Sans";letter-spacing:2px;text-transform:uppercase}
+.sync{display:flex;align-items:center;gap:11px}
+.synced{font-size:11px;color:var(--txt3);text-align:right;line-height:1.4}
+.synced b{color:var(--inc);font-weight:500}
+.btn-sync{
+  display:flex;align-items:center;gap:7px;background:var(--panel2);color:var(--txt);
+  border:1px solid var(--line);border-radius:8px;padding:8px 14px;font-size:13px;
+  font-family:"Noto Sans TC";cursor:pointer;transition:.15s;font-weight:500
+}
+.btn-sync:hover{border-color:var(--brass);color:var(--brass)}
+.btn-sync.spin .ico{animation:rot .8s linear infinite}
+.ico{width:15px;height:15px;display:inline-block}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ===== 手機優先 ===== */
+/* controls */
+.controls{display:flex;flex-direction:column;gap:10px;margin:14px 0 16px}
+.seg{display:flex;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
+.seg button{
+  flex:1;background:none;border:none;color:var(--txt2);min-height:42px;font-size:15px;
+  font-family:"Noto Sans TC";font-weight:600;cursor:pointer;border-radius:7px;transition:.15s
+}
+.seg button.on{background:var(--panel2);color:var(--txt)}
+.seg.exp button.on[data-v="支出"]{color:var(--exp)}
+.seg.exp button.on[data-v="收入"]{color:var(--inc)}
+.row2{display:flex;gap:10px}
+.row2 .seg{flex:1}
+select.flt{
+  width:100%;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:10px;
+  padding:0 14px;min-height:46px;font-size:15px;font-family:"Noto Sans TC";cursor:pointer;
+  appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%2398a2b3" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>');
+  background-repeat:no-repeat;background-position:right 14px center
+}
+select.flt:focus{outline:none;border-color:var(--brass)}
+.period{display:flex;align-items:center;gap:10px}
+.period button{flex:0 0 52px;background:var(--panel);border:1px solid var(--line);color:var(--txt2);height:48px;border-radius:10px;cursor:pointer;font-size:20px}
+.period button:active{background:var(--panel2)}
+.period .lbl{flex:1;text-align:center;font-size:21px;font-weight:700;letter-spacing:1px}
+
+/* kpi — hero 大數字 + 三小格 */
+.kpis{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.kpi-hero{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px 18px 20px}
+.kpi-hero .k{font-size:12px;color:var(--txt3);letter-spacing:.5px;font-family:"Noto Sans TC";margin-bottom:8px}
+.kpi-hero .v{font-size:38px;font-weight:700;line-height:1;word-break:break-all}
+.kpi-hero .v.exp{color:var(--exp)} .kpi-hero .v.inc{color:var(--inc)}
+.kpi-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 12px}
+.kpi .k{font-size:11px;color:var(--txt3);font-family:"Noto Sans TC";margin-bottom:6px}
+.kpi .v{font-size:19px;font-weight:600}
+.kpi .vs{font-size:12px;color:var(--txt2);margin-left:2px;font-weight:400}
+
+/* panels */
+.grid{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 16px}
+.card h3{font-size:14px;font-weight:600;color:var(--txt);margin-bottom:3px;letter-spacing:.3px}
+.card .h-amt{font-size:18px;font-weight:600;margin-bottom:8px}
+.chart{width:100%}
+#donut{height:300px} #trend{height:280px}
+
+/* ranking list */
+.rowlist{display:flex;flex-direction:column;gap:0;margin-top:6px}
+.rl{padding:13px 0;border-bottom:1px solid var(--line)}
+.rl:last-child{border-bottom:none}
+.rl .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.rl .nm{font-size:15px;font-weight:600}
+.rl .amt{font-size:15px;white-space:nowrap}
+.rl .barwrap{display:flex;align-items:center;gap:10px;margin-top:9px}
+.rl .bar{flex:1;height:8px;background:var(--panel2);border-radius:5px;overflow:hidden}
+.rl .bar i{display:block;height:100%;border-radius:5px}
+.rl .pct{font-size:13px;color:var(--txt2);min-width:38px;text-align:right}
+
+/* 明細 — 卡片清單(取代寬表格)*/
+.txn-list{display:flex;flex-direction:column;gap:0;margin-top:8px}
+.txn{padding:13px 0;border-bottom:1px solid #232a36}
+.txn:last-child{border-bottom:none}
+.txn .l1{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.txn .nm{font-size:15px;font-weight:500;line-height:1.35}
+.txn .amt{font-size:15px;white-space:nowrap}
+.txn .amt.neg{color:var(--exp)} .txn .amt.pos{color:var(--inc)}
+.txn .l2{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px;font-size:12px;color:var(--txt3)}
+.txn .l2 .d{font-family:"IBM Plex Mono",monospace}
+.tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);color:var(--txt2);
+  font-size:11px;padding:2px 8px;border-radius:5px}
+.qhint{font-size:11px;color:var(--txt3);margin-top:12px;line-height:1.6}
+
+/* header 手機版精簡 */
+.hbar{height:54px}
+.brand h1{font-size:16px}
+.brand .sub{display:none}
+.synced{display:none}
+.btn-sync{min-height:40px;padding:0 14px}
+.btn-sync .lbltxt{display:inline}
+
+/* ===== 桌機加強 (>=760px) ===== */
+@media(min-width:760px){
+  .wrap{padding:0 18px}
+  .brand .sub{display:inline;font-size:11px;color:var(--txt3);font-family:"IBM Plex Sans";letter-spacing:2px;text-transform:uppercase}
+  .synced{display:block;font-size:11px;color:var(--txt3);text-align:right;line-height:1.4}
+  .synced b{color:var(--inc);font-weight:500}
+  .hbar{height:62px} .brand h1{font-size:17px}
+  .controls{flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px}
+  .seg{width:auto} .seg button{min-height:38px;font-size:13px;flex:0 0 auto;padding:0 18px}
+  .row2{display:contents}
+  select.flt{width:auto;min-height:40px;min-width:170px}
+  .period{margin-left:auto;flex:0 0 auto}
+  .period button{flex:0 0 36px;height:36px;font-size:16px}
+  .period .lbl{flex:0 0 auto;min-width:100px;font-size:18px}
+  .kpis{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px}
+  .kpi-hero{padding:15px 17px} .kpi-hero .v{font-size:27px}
+  .kpi-mini{display:contents}
+  .grid{flex-direction:row} .grid>.card{flex:1}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap hbar">
+    <div class="brand">
+      <h1>安幸 收支儀表板</h1>
+      <span class="sub">Oasis Living · Ledger</span>
+    </div>
+    <div class="sync">
+      <div class="synced">資料來源 · Google Sheet<br>上次同步 <b id="syncT">剛剛</b></div>
+      <button class="btn-sync" id="syncBtn">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+        <span class="lbltxt">同步</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div class="row2">
+      <div class="seg exp" id="segType">
+        <button data-v="支出" class="on">支出</button>
+        <button data-v="收入">收入</button>
+      </div>
+      <div class="seg" id="segScope">
+        <button data-v="year" class="on">年</button>
+        <button data-v="month">月</button>
+      </div>
+    </div>
+    <select class="flt" id="fltGroup"><option value="__all">全部房源群組</option></select>
+    <div class="period">
+      <button id="prev">‹</button>
+      <span class="lbl mono" id="periodLbl">2026</span>
+      <button id="next">›</button>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h3 id="donutTitle">支出組成 · 依房源群組</h3>
+      <div class="h-amt mono" id="donutAmt"></div>
+      <div id="donut" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3 id="trendTitle">逐月趨勢</h3>
+      <div class="h-amt mono" id="trendAmt"></div>
+      <div id="trend" class="chart"></div>
+    </div>
+  </div>
+
+  <div class="card full" style="margin-bottom:14px">
+    <h3>房源群組排行</h3>
+    <div class="rowlist" id="ranks"></div>
+  </div>
+
+  <div class="card full">
+    <h3>明細查詢 <span class="tag" id="qScope"></span></h3>
+    <div class="txn-list" id="qtable"></div>
+    <div class="qhint" id="qhint"></div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+// ║  設定區 — 填入你的 Supabase 專案資訊(在 Supabase 後台      ║
+// ║  Settings → API 可找到。anon key 是公開唯讀金鑰,可放前端) ║
+// ╚══════════════════════════════════════════════════════════╝
+const SUPABASE_URL  = 'https://sdyvkfeuzzxcfjhovpsa.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_0gU3FkzgBgwdA5EBG-q9SA_9RgVpfTG';
+const SYNC_ENDPOINT = '';  // (選填)Apps Script Web App 網址,同步按鈕會呼叫它
+
+let DATA = [];  // 由 Supabase 載入
+const fmt = n => (n<0?'-':'')+'TW$'+Math.abs(Math.round(n)).toLocaleString('en-US');
+const fmtShort = n => { const a=Math.abs(n); if(a>=1e6)return (n<0?'-':'')+(a/1e6).toFixed(1)+'M'; if(a>=1e3)return (n<0?'-':'')+(a/1e3).toFixed(0)+'k'; return Math.round(n);};
+const PAL = ['#e5484d','#4aa5e0','#d4a93f','#30a46c','#8b6fd4','#e08a4a','#5ac8c8','#c85a8b','#7a8a99','#a0a0a0','#6b9e4a','#d46f6f'];
+
+let state = { type:'支出', scope:'year', year:'2026', month:'2026-06', group:'__all' };
+
+const months = [];
+const years = [];
+
+
+// group filter options
+const fg = document.getElementById('fltGroup');
+
+const donutChart = echarts.init(document.getElementById('donut'),null,{renderer:'canvas'});
+const trendChart = echarts.init(document.getElementById('trend'),null,{renderer:'canvas'});
+
+function rowsFor(){
+  return DATA.filter(r=>{
+    if(r.t!==state.type) return false;
+    if(state.group!=='__all' && r.g!==state.group) return false;
+    if(state.scope==='year') return r.ym.slice(0,4)===state.year;
+    return r.ym===state.month;
+  });
+}
+const val = r => state.type==='支出' ? -r.a : r.a; // 支出存負值
+
+function render(){
+  const isExp = state.type==='支出';
+  const col = isExp?'var(--exp)':'var(--inc)';
+  // toggle seg styling already via css
+  document.querySelectorAll('#segType button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.type));
+  document.querySelectorAll('#segScope button').forEach(b=>b.classList.toggle('on',b.dataset.v===state.scope));
+  document.getElementById('periodLbl').textContent = state.scope==='year'?state.year:state.month;
+
+  const rows = rowsFor();
+  const total = rows.reduce((s,r)=>s+val(r),0);
+  const n = rows.length;
+
+  // by group
+  const byG={}; rows.forEach(r=>byG[r.g]=(byG[r.g]||0)+val(r));
+  const gArr = Object.entries(byG).map(([k,v])=>({name:k,value:v})).sort((a,b)=>b.value-a.value);
+
+  // KPIs
+  const periodTxt = state.scope==='year'?`${state.year} 全年`:`${state.month}`;
+  const avgMo = state.scope==='year' ? total/(new Set(rows.map(r=>r.ym)).size||1) : total;
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi-hero"><div class="k">${isExp?'總支出':'總收入'} · ${periodTxt}</div><div class="v ${isExp?'exp':'inc'} mono">${fmt(total)}</div></div>
+    <div class="kpi-mini">
+      <div class="kpi"><div class="k">交易筆數</div><div class="v mono">${n.toLocaleString()}<span class="vs">筆</span></div></div>
+      <div class="kpi"><div class="k">房源群組</div><div class="v mono">${gArr.length}<span class="vs">群</span></div></div>
+      <div class="kpi"><div class="k">${state.scope==='year'?'平均每月':'單筆均值'}</div><div class="v mono">${fmtShort(state.scope==='year'?avgMo:(total/(n||1)))}</div></div>
+    </div>`;
+
+  // donut (image 5)
+  document.getElementById('donutTitle').textContent = `${isExp?'支出':'收入'}組成 · 依房源群組`;
+  document.getElementById('donutAmt').textContent = fmt(total);
+  document.getElementById('donutAmt').style.color = col;
+  const topShare = gArr.length? (gArr[0].value/total*100):0;
+  donutChart.setOption({
+    tooltip:{trigger:'item',backgroundColor:'#222936',borderColor:'#2c3441',textStyle:{color:'#e8eaed',fontFamily:'Noto Sans TC'},
+      formatter:p=>`${p.name}<br/><b>${fmt(p.value)}</b> · ${p.percent}%`},
+    series:[{type:'pie',radius:['52%','82%'],center:['50%','50%'],
+      data:gArr.map((d,i)=>({...d,itemStyle:{color:PAL[i%PAL.length]}})),
+      label:{show:false},labelLine:{show:false},
+      itemStyle:{borderColor:'#1b2028',borderWidth:2}}],
+    graphic:[{type:'text',left:'center',top:'42%',style:{text:isExp?'支出':'收入',fill:'#98a2b3',fontSize:13,fontFamily:'Noto Sans TC'}},
+             {type:'text',left:'center',top:'52%',style:{text:gArr.length?gArr[0].name+' '+topShare.toFixed(0)+'%':'',fill:'#e8eaed',fontSize:15,fontWeight:600,fontFamily:'Noto Sans TC'}}]
+  },true);
+
+  // trend across the chosen year (image 3) — always monthly within current year
+  const yr = state.scope==='year'?state.year:state.month.slice(0,4);
+  const ms = months.filter(m=>m.startsWith(yr));
+  const series = ms.map(m=>{
+    return DATA.filter(r=>r.t===state.type && r.ym===m && (state.group==='__all'||r.g===state.group))
+               .reduce((s,r)=>s+val(r),0);
+  });
+  const nonzero = series.filter(v=>v>0);
+  const avg = nonzero.length? nonzero.reduce((a,b)=>a+b,0)/nonzero.length : 0;
+  document.getElementById('trendTitle').textContent = `${yr} 逐月${isExp?'支出':'收入'}趨勢`;
+  document.getElementById('trendAmt').textContent = `平均 ${fmt(avg)}`;
+  document.getElementById('trendAmt').style.color = 'var(--txt2)';
+  trendChart.setOption({
+    grid:{left:8,right:16,top:18,bottom:24,containLabel:true},
+    tooltip:{trigger:'axis',backgroundColor:'#222936',borderColor:'#2c3441',textStyle:{color:'#e8eaed',fontFamily:'IBM Plex Mono'},
+      formatter:p=>`${p[0].axisValue}<br/><b>${fmt(p[0].value)}</b>`},
+    xAxis:{type:'category',data:ms.map(m=>m.slice(5)),axisLine:{lineStyle:{color:'#2c3441'}},
+      axisLabel:{color:'#6b7480',fontFamily:'IBM Plex Mono',fontSize:11}},
+    yAxis:{type:'value',splitLine:{lineStyle:{color:'#222936'}},
+      axisLabel:{color:'#6b7480',fontFamily:'IBM Plex Mono',fontSize:11,formatter:v=>fmtShort(v)}},
+    series:[{type:'line',data:series,smooth:false,symbol:'circle',symbolSize:7,
+      lineStyle:{color:col,width:3},itemStyle:{color:col,borderColor:'#14181f',borderWidth:2},
+      areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:isExp?'rgba(229,72,77,.18)':'rgba(48,164,108,.18)'},{offset:1,color:'rgba(0,0,0,0)'}]}},
+      markLine:{silent:true,symbol:'none',lineStyle:{color:'#d4a93f',type:'dashed',width:1.3},
+        data:[{yAxis:avg}],label:{formatter:'平均',color:'#d4a93f',fontFamily:'Noto Sans TC',fontSize:11,position:'insideEndTop'}}}]
+  },true);
+
+  // ranking list (image 4)
+  const rk = document.getElementById('ranks');
+  rk.innerHTML = gArr.map((d,i)=>{
+    const pct = total? (d.value/total*100):0;
+    return `<div class="rl">
+      <div class="top"><span class="nm">${d.name}</span><span class="amt mono" style="color:${col}">${fmt(d.value)}</span></div>
+      <div class="barwrap">
+        <div class="bar"><i style="width:${pct.toFixed(1)}%;background:${PAL[i%PAL.length]}"></i></div>
+        <span class="pct mono">${pct.toFixed(0)}%</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // query table — top detail rows of current selection
+  document.getElementById('qScope').textContent = `${periodTxt} · ${isExp?'支出':'收入'}${state.group!=='__all'?' · '+state.group:''}`;
+  const det = [...rows].sort((a,b)=>Math.abs(b.a)-Math.abs(a.a)).slice(0,12);
+  const t = document.getElementById('qtable');
+  t.innerHTML = det.map(r=>`<div class="txn">
+      <div class="l1"><span class="nm">${r.itm||r.h||'—'}</span><span class="amt mono ${isExp?'neg':'pos'}">${fmt(val(r))}</span></div>
+      <div class="l2"><span class="d">${r.d||'—'}</span><span class="tag">${r.g}</span>${r.c?`<span>${r.c}</span>`:''}${r.p?`<span>· ${r.p}</span>`:''}</div>
+    </div>`).join('');
+  document.getElementById('qhint').textContent = `顯示前 12 筆(依金額)· 本區間共 ${n.toLocaleString()} 筆 · 真實版本由 Supabase SQL View 即時回傳`;
+}
+
+// item name not in minimal json — patch: use h as fallback already. (kept light)
+
+// events
+document.getElementById('segType').onclick=e=>{if(e.target.dataset.v){state.type=e.target.dataset.v;render();}};
+document.getElementById('segScope').onclick=e=>{if(e.target.dataset.v){state.scope=e.target.dataset.v;render();}};
+document.getElementById('fltGroup').onchange=e=>{state.group=e.target.value;render();};
+document.getElementById('prev').onclick=()=>step(-1);
+document.getElementById('next').onclick=()=>step(1);
+function step(d){
+  if(state.scope==='year'){let i=years.indexOf(state.year)+d;if(i>=0&&i<years.length)state.year=years[i];}
+  else{let i=months.indexOf(state.month)+d;if(i>=0&&i<months.length)state.month=months[i];}
+  render();
+}
+// sync button — demo. Real version: fetch(APPS_SCRIPT_WEBAPP_URL) then re-render.
+document.getElementById('syncBtn').onclick=async function(){
+  const b=this; b.classList.add('spin');
+  try{
+    if(SYNC_ENDPOINT){ await fetch(SYNC_ENDPOINT); }   // 觸發 Apps Script 把 Sheet 同步進 Supabase
+    DATA=await fetchAll(); rebuildIndex(); fetchLastSync(); render();
+  }catch(e){ alert('同步失敗:'+e.message); }
+  b.classList.remove('spin');
+};
+
+// ── Supabase 資料層 ───────────────────────────────────────
+async function fetchAll(){
+  const cols='uid,ym,item,txn_date,buyer,txn_type,amount,property,property_group,category,pay_method';
+  let all=[], offset=0, page=1000;
+  while(true){
+    const url=`${SUPABASE_URL}/rest/v1/ledger?select=${cols}&order=uid&limit=${page}&offset=${offset}`;
+    const res=await fetch(url,{headers:{apikey:SUPABASE_ANON,Authorization:'Bearer '+SUPABASE_ANON}});
+    if(!res.ok) throw new Error('Supabase 回應 '+res.status+' — 請檢查網址/金鑰/RLS 設定');
+    const batch=await res.json();
+    all=all.concat(batch);
+    if(batch.length<page) break;
+    offset+=page;
+  }
+  // 映射成儀表板內部格式
+  return all.map(r=>({
+    ym:r.ym, d:r.txn_date||'', t:r.txn_type, a:Number(r.amount),
+    g:r.property_group||'(未分類)', h:r.property||'', itm:(r.item||'').slice(0,28),
+    c:r.category||'', p:r.pay_method||''
+  }));
+}
+async function fetchLastSync(){
+  try{
+    const url=`${SUPABASE_URL}/rest/v1/sync_log?select=synced_at&order=synced_at.desc&limit=1`;
+    const res=await fetch(url,{headers:{apikey:SUPABASE_ANON,Authorization:'Bearer '+SUPABASE_ANON}});
+    const j=await res.json();
+    if(j&&j[0]){const t=new Date(j[0].synced_at);
+      document.getElementById('syncT').textContent=t.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+  }catch(e){}
+}
+
+function rebuildIndex(){
+  const ms=[...new Set(DATA.map(r=>r.ym))].sort();
+  const ys=[...new Set(ms.map(m=>m.slice(0,4)))].sort();
+  months.length=0; months.push(...ms);
+  years.length=0; years.push(...ys);
+  state.year=ys[ys.length-1]; state.month=ms[ms.length-1];
+  const gs=[...new Set(DATA.map(r=>r.g))].sort();
+  fg.innerHTML='<option value="__all">全部房源群組</option>';
+  gs.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;fg.appendChild(o);});
+}
+
+async function boot(){
+  const set=!SUPABASE_URL.includes('你的專案');
+  if(!set){
+    document.querySelector('.wrap').insertAdjacentHTML('afterbegin',
+      '<div style="background:#2a2230;border:1px solid #5a4250;color:#e0b0b0;padding:14px 18px;border-radius:10px;margin-bottom:16px;font-size:13px;line-height:1.7">'+
+      '⚙️ <b>尚未連線 Supabase</b> — 請打開此檔原始碼,在頂端「設定區」填入 <code>SUPABASE_URL</code> 與 <code>SUPABASE_ANON</code> 金鑰。'+
+      '填好後重新整理即會載入真實資料。目前顯示為空。</div>');
+    return;
+  }
+  try{
+    DATA=await fetchAll();
+    rebuildIndex();
+    fetchLastSync();
+    render();
+  }catch(e){
+    document.querySelector('.wrap').insertAdjacentHTML('afterbegin',
+      '<div style="background:#2a2230;border:1px solid #5a4250;color:#e0b0b0;padding:14px 18px;border-radius:10px;margin-bottom:16px;font-size:13px">'+
+      '❌ 載入失敗:'+e.message+'</div>');
+  }
+}
+
+window.addEventListener('resize',()=>{donutChart.resize();trendChart.resize();});
+boot();
+</script>
+</body>
+</html>
